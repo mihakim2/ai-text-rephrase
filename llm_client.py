@@ -42,6 +42,26 @@ def _gemini():
 
 _BAD_CTRL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f]")  # ctrl chars EXCEPT \t \n \r
 
+# Deterministic punctuation scrubber. LLMs are stubborn about em-dashes even when
+# explicitly banned in the prompt; this is the belt-and-suspenders fix.
+_EM_DASH_SPACED = re.compile(r"\s*[—–]\s*")           # — or – with optional surrounding ws
+_DOUBLE_HYPHEN_SPACED = re.compile(r"\s+--\s+|\s+--$|^--\s+")  # `--` used as em-dash (with ws)
+
+def scrub_dashes(text: str) -> str:
+    """Replace em-dash, en-dash, and `--`-as-em-dash with a comma (with one trailing space).
+
+    Leaves true hyphens alone (state-of-the-art, well-known). Leaves bare `--` inside
+    code-like spans (no surrounding whitespace) alone since those are usually flags.
+    """
+    if not text:
+        return text
+    text = _EM_DASH_SPACED.sub(", ", text)
+    text = _DOUBLE_HYPHEN_SPACED.sub(", ", text)
+    # Trim accidental ", ," sequences and " ," → ","
+    text = re.sub(r" +,", ",", text)
+    text = re.sub(r",\s*,", ",", text)
+    return text
+
 
 def _extract_json(text: str) -> dict:
     """Tolerant JSON extraction.
@@ -172,6 +192,7 @@ WHAT MUST CHANGE
 
 STYLE
 - Third-year PhD student voice. Imperfect-but-thoughtful, not marketing prose.
+- BANNED PUNCTUATION (absolute, no exceptions): em-dash —, en-dash –, double-hyphen --. Use commas, semicolons, periods, or parentheses instead. Recast the sentence if you have to.
 - BANNED phrases: "moreover", "furthermore", "it is worth noting", "it is important to note", "in conclusion", "delve into", "navigate the landscape", "the realm of", "robust", "leverage" (verb).
 - Avoid tricolons. Sentence-initial "But"/"And"/"So" allowed sparingly.
 
@@ -223,7 +244,7 @@ def rephrase(
         messages=[{"role": "user", "content": "".join(user_parts)}],
     )
     usage.record_anthropic(job_id, config.MODEL_REPHRASER, resp, role="rephraser")
-    return resp.content[0].text.strip().strip('"').strip("'")
+    return scrub_dashes(resp.content[0].text.strip().strip('"').strip("'"))
 
 
 # ---------------- Critic (Opus, structured JSON) ----------------
@@ -238,7 +259,7 @@ AI tells to flag:
 - Suspiciously uniform sentence length.
 - Empty intensifiers: "robust", "comprehensive", "seamless", "cutting-edge".
 - Overly balanced "on one hand / on the other" structures.
-- Em-dashes used as a thinking device when commas would do.
+- ANY use of em-dash (—), en-dash (–), or double-hyphen (--) — these are HARD-BANNED. Any presence of these characters is an automatic ai_likelihood_score cap of 4.
 
 Scoring: 0 = obvious AI; 10 = indistinguishable from an honest PhD draft.
 
@@ -312,7 +333,14 @@ def _safe_parse_sentence_critic(text: str, idxs: list[int], label: str) -> dict:
 
 # ---------------- Final coherence pass (Sonnet) ----------------
 
-FINAL_PASS_SYSTEM = """You are doing a final coherence pass on a PhD-student draft. Your job: fix pronoun antecedents, dangling transitions, and inconsistent voice across paragraphs. Keep the per-sentence rewrites — only adjust connective tissue. Follow the same style rules: no "moreover/furthermore", no tricolons, no marketing verbs, voice must stay consistent. Output ONLY the cleaned document text. No preamble."""
+FINAL_PASS_SYSTEM = """You are doing a final coherence pass on a PhD-student draft. Your job: fix pronoun antecedents, dangling transitions, and inconsistent voice across paragraphs. Keep the per-sentence rewrites; only adjust connective tissue.
+
+Follow the same style rules:
+- ABSOLUTE PROHIBITION on em-dash (—), en-dash (–), and double-hyphen (--). If you find any in the input, replace them with commas, semicolons, periods, or parentheses. NEVER introduce them.
+- No "moreover/furthermore/it is worth noting", no tricolons, no marketing verbs.
+- Voice must stay consistent across paragraphs.
+
+Output ONLY the cleaned document text. No preamble."""
 
 def final_coherence_pass(full_text: str, voice_profile: dict, *, job_id: str | None = None) -> str:
     client = _client()
@@ -337,7 +365,7 @@ def final_coherence_pass(full_text: str, voice_profile: dict, *, job_id: str | N
         ],
     )
     usage.record_anthropic(job_id, config.MODEL_FINAL_PASS, resp, role="final_pass")
-    return resp.content[0].text.strip()
+    return scrub_dashes(resp.content[0].text.strip())
 
 
 # =====================================================================
@@ -447,6 +475,11 @@ STYLE
 - Write as a third-year PhD student rewriting your own paragraph. Imperfect-but-thoughtful, not polished marketing prose.
 - Vary sentence length within the paragraph. Mix short and medium.
 - Maximum one mild hedge per paragraph ("likely", "tends to", "in part").
+- BANNED PUNCTUATION (NEVER use any of these — they are absolute prohibitions):
+  - Em-dash: — (U+2014)
+  - En-dash: – (U+2013)
+  - Double-hyphen as em-dash substitute: --
+  If you would normally reach for one of these, use a comma, semicolon, period, or parenthesis instead. Recast the sentence if needed.
 - BANNED phrases (never use): "moreover", "furthermore", "it is worth noting", "it is important to note", "in conclusion", "delve into", "navigate the landscape", "the realm of", "robust" (as descriptor), "leverage" (as verb), "harness" (as verb).
 - Avoid tricolons. Sentence-initial "But"/"And"/"So" allowed sparingly.
 
@@ -507,7 +540,7 @@ def rephrase_chunk(
         messages=[{"role": "user", "content": "".join(user_parts)}],
     )
     usage.record_anthropic(job_id, config.MODEL_REPHRASER, resp, role="rephraser")
-    return resp.content[0].text.strip()
+    return scrub_dashes(resp.content[0].text.strip())
 
 
 # ---------------- Chunk intent extraction ----------------
@@ -556,7 +589,7 @@ Flag these AI tells:
 - Marketing verbs: "leverage", "navigate", "unlock", "delve into", "harness".
 - Empty intensifiers: "robust", "comprehensive", "seamless", "cutting-edge".
 - Overly balanced "on one hand / on the other".
-- Em-dashes used as a thinking device when commas would do.
+- ANY use of em-dash (—), en-dash (–), or double-hyphen (--) — these are HARD-BANNED. Any presence of these characters is an automatic ai_score cap of 4.
 - Paragraphs that say what they're about to say, then say it, then say it again.
 
 DIMENSION 2 — similarity_score (0-10, where 10 = REWRITE IS A NEAR-COPY of the original; 0 = thoroughly rewritten in different words):
