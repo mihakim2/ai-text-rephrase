@@ -225,7 +225,7 @@ def _process_batch(job_id: str, batch_idxs: list[int], doc: dict, jlog: logging.
         for per in critic.get("per_sentence", []):
             i = per.get("idx")
             if i in batch_idxs and per.get("score", 10) < target_ai:
-                fix_hints[i] = per.get("suggested_fix") or "Rewrite in a more natural PhD-student voice."
+                fix_hints[i] = per.get("suggested_fix") or "Rewrite in a more natural human voice."
         if not fix_hints:
             break
         if prev_overall is not None and overall <= prev_overall:

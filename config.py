@@ -9,7 +9,7 @@ batch size, iteration thresholds, parallelism) lives in this one file.
 #   Writers/analyzers = Anthropic Claude (consistent voice, same family)
 #   Critic            = Google Gemini   (independent judge, different blind spots)
 MODEL_INTENT = "claude-haiku-4-5"  # Claude — fast cheap intent extraction
-MODEL_REPHRASER = "claude-sonnet-4-6"  # Claude — main rewriter in PhD voice
+MODEL_REPHRASER = "claude-sonnet-4-6"  # Claude, main rewriter
 MODEL_VOICE_PROFILE = (
     "claude-opus-4-7"  # Claude — voice calibration (aligns with writer)
 )

@@ -11,7 +11,7 @@
       <div class="header-row">
         <div>
           <h1>Rephraser</h1>
-          <p class="subtitle">Turn AI-written text into something a PhD student would actually write.</p>
+          <p class="subtitle">Turn AI-written text into something an actual human would write.</p>
         </div>
         <button type="button" id="howit-btn" class="link-btn" aria-haspopup="dialog" aria-controls="howit-modal">How it works</button>
       </div>
@@ -26,7 +26,7 @@
           <button type="button" class="icon-btn" id="howit-close" aria-label="Close">×</button>
         </div>
         <div class="modal-body">
-          <p>This app rewrites AI-written prose to read like an actual human (specifically: a PhD student) wrote it. Two modes:</p>
+          <p>This app rewrites AI-written prose to read like an actual human wrote it. Two modes:</p>
           <ul class="howit-list">
             <li><strong>Deep mode</strong> (recommended) — paragraph-level rewriting with structure preservation. Headers, lists, code, and math are never touched. Each prose paragraph is first scored by a <em>blind AI detector</em>; if it already sounds human enough, it passes through. Otherwise it's rewritten by Claude Sonnet using paragraph context and either your own writing samples or an inferred voice profile. A <em>prompted critic</em> and the blind detector then independently judge the rewrite; both must clear thresholds, plus a similarity check ensures the rewrite isn't a near-copy.</li>
             <li><strong>Quick mode</strong> — sentence-by-sentence rewriting. Faster, simpler, less stylistically cohesive.</li>

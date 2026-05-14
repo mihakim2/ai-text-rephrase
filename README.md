@@ -6,7 +6,7 @@
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/mihakim2/ai-text-rephrase/pulls)
 
-A local Flask app that takes AI-written text and rewrites it to sound like a PhD student's own writing. Cross-family LLM judging (Claude writes, Gemini judges), document structure preservation, optional voice cloning from your own samples, and a blind AI detector that gates every accepted rewrite.
+A local Flask app that takes AI-written text and rewrites it to sound like a human actually wrote it. Cross-family LLM judging (Claude writes, Gemini judges), document structure preservation, optional voice cloning from your own samples, and a blind AI detector that gates every accepted rewrite.
 
 ## Why
 
