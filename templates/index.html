@@ -108,10 +108,31 @@ flowchart LR
 
       <div id="samples-wrap" class="samples-wrap">
         <label for="samples" class="samples-label">
-          Your writing samples <span class="optional">(optional — pastes a few paragraphs you've actually written, separated by blank lines or <code>---</code>)</span>
+          Your writing samples <span class="optional">(optional, paste a few paragraphs you've actually written, separated by blank lines or <code>---</code>)</span>
         </label>
         <textarea id="samples" rows="6" placeholder="Paste 2-3 paragraphs of your own writing here. The rewriter will match this voice instead of inferring one from the document."></textarea>
       </div>
+
+      <details class="intensity-wrap" id="intensity-wrap">
+        <summary><span class="intensity-label">Rephrase intensity</span> <span class="intensity-current" id="intensity-current">balanced (default)</span></summary>
+        <div class="intensity-options">
+          <label class="intensity-opt">
+            <input type="radio" name="intensity" value="light">
+            <span class="opt-title">Light</span>
+            <span class="opt-desc">Only rewrite paragraphs that clearly read as AI. One iteration per paragraph. Preserves more of the original voice; faster and cheaper.</span>
+          </label>
+          <label class="intensity-opt">
+            <input type="radio" name="intensity" value="balanced" checked>
+            <span class="opt-title">Balanced <span class="opt-tag">default</span></span>
+            <span class="opt-desc">Rewrite paragraphs that score below human on the blind detector. Up to three iterations. Reject near-copies. Recommended for most documents.</span>
+          </label>
+          <label class="intensity-opt">
+            <input type="radio" name="intensity" value="aggressive">
+            <span class="opt-title">Aggressive</span>
+            <span class="opt-desc">Rewrite almost everything. Demand strong human-ness and a big surface change. Up to four iterations. Slower and more expensive, but maximum rewriting.</span>
+          </label>
+        </div>
+      </details>
 
       <button id="start-btn" disabled>Start rephrasing</button>
       <div id="upload-msg" class="msg"></div>

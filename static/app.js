@@ -90,6 +90,7 @@ const state = {
   file: null,
   pasted: "",
   mode: "deep",
+  intensity: "balanced",
   unitCount: 0,
   unitLabel: "blocks",
   blockTypes: [],
@@ -113,6 +114,21 @@ document.querySelectorAll('input[name="mode"]').forEach((r) => {
 // Initial state
 state.mode = document.querySelector('input[name="mode"]:checked').value;
 samplesWrap.classList.toggle("hidden-soft", state.mode !== "deep");
+
+// --- Intensity selector ---
+function refreshIntensityLabel() {
+  const lbl = { light: "light", balanced: "balanced (default)", aggressive: "aggressive" }[state.intensity] || state.intensity;
+  const el = document.getElementById("intensity-current");
+  if (el) el.textContent = lbl;
+}
+document.querySelectorAll('input[name="intensity"]').forEach((r) => {
+  r.addEventListener("change", () => {
+    state.intensity = document.querySelector('input[name="intensity"]:checked').value;
+    refreshIntensityLabel();
+  });
+});
+state.intensity = document.querySelector('input[name="intensity"]:checked').value;
+refreshIntensityLabel();
 
 // --- Source tabs (file vs paste) ---
 function refreshStartEnabled() {
@@ -200,6 +216,7 @@ startBtn.addEventListener("click", async () => {
     fd.append("file", state.file);
   }
   fd.append("mode", state.mode);
+  fd.append("intensity", state.intensity);
   if (state.mode === "deep") {
     const samples = $("samples").value;
     if (samples.trim()) fd.append("samples", samples);

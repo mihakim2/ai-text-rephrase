@@ -204,7 +204,7 @@ def _pick_best_versions(batch_idxs: list[int], doc: dict):
         s["status"] = "accepted"
 
 
-def _process_batch(job_id: str, batch_idxs: list[int], doc: dict, jlog: logging.Logger):
+def _process_batch(job_id: str, batch_idxs: list[int], doc: dict, jlog: logging.Logger, *, max_iter: int, target_ai: int, target_flow: int):
     sentences = doc["sentences"]
     jlog.info(f"batch start: sentences {batch_idxs[0]}..{batch_idxs[-1]}")
 
@@ -213,10 +213,10 @@ def _process_batch(job_id: str, batch_idxs: list[int], doc: dict, jlog: logging.
 
     iteration = 1
     prev_overall = None
-    while iteration < config.MAX_ITERATIONS:
+    while iteration < max_iter:
         overall = critic.get("ai_likelihood_score", 0)
         flow = critic.get("batch_flow_score", 0)
-        if overall >= config.TARGET_AI_SCORE and flow >= config.TARGET_FLOW_SCORE:
+        if overall >= target_ai and flow >= target_flow:
             jlog.info(
                 f"batch {batch_idxs[0]}..{batch_idxs[-1]} passed at iter={iteration} (ai={overall} flow={flow})"
             )
@@ -224,7 +224,7 @@ def _process_batch(job_id: str, batch_idxs: list[int], doc: dict, jlog: logging.
         fix_hints: dict[int, str] = {}
         for per in critic.get("per_sentence", []):
             i = per.get("idx")
-            if i in batch_idxs and per.get("score", 10) < config.TARGET_AI_SCORE:
+            if i in batch_idxs and per.get("score", 10) < target_ai:
                 fix_hints[i] = per.get("suggested_fix") or "Rewrite in a more natural PhD-student voice."
         if not fix_hints:
             break
@@ -273,6 +273,16 @@ def run(job_id: str):
     jlog = setup_job_logger(job_id, run_path, store)
     jlog.info(f"run dir: {run_path}")
 
+    # Resolve per-job thresholds (intensity preset, set at upload time).
+    T = (doc.get("config") or {}).get("thresholds") or {}
+    max_iter = T.get("MAX_ITERATIONS", config.MAX_ITERATIONS)
+    target_ai = T.get("TARGET_AI_SCORE", config.TARGET_AI_SCORE)
+    target_flow = T.get("TARGET_FLOW_SCORE", config.TARGET_FLOW_SCORE)
+    jlog.info(
+        f"intensity: {doc.get('config', {}).get('intensity', 'default')} "
+        f"(target_ai>={target_ai}, target_flow>={target_flow}, max_iter={max_iter})"
+    )
+
     try:
         store.update(job_id, status="running")
         sentences = doc["sentences"]
@@ -311,7 +321,7 @@ def run(job_id: str):
         processed_since_checkpoint = 0
         for start in range(0, total, config.BATCH_SIZE):
             batch_idxs = list(range(start, min(start + config.BATCH_SIZE, total)))
-            _process_batch(job_id, batch_idxs, doc, jlog)
+            _process_batch(job_id, batch_idxs, doc, jlog, max_iter=max_iter, target_ai=target_ai, target_flow=target_flow)
             processed_since_checkpoint += len(batch_idxs)
             if processed_since_checkpoint >= config.CHECKPOINT_EVERY:
                 _write_checkpoint(run_path, doc, jlog)

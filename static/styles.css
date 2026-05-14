@@ -319,6 +319,58 @@ button:disabled {
 .diagram-wrap .mermaid { text-align: center; font-family: var(--sans); }
 .diagram-wrap svg { max-width: 100%; height: auto !important; }
 
+/* Intensity (collapsible) */
+.intensity-wrap {
+  margin-top: 14px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface-2);
+}
+.intensity-wrap > summary {
+  cursor: pointer;
+  padding: 10px 14px;
+  list-style: none;
+  display: flex; align-items: center; gap: 10px;
+  user-select: none;
+}
+.intensity-wrap > summary::-webkit-details-marker { display: none; }
+.intensity-wrap > summary::before {
+  content: "▸"; color: var(--muted); display: inline-block;
+  transition: transform 0.15s ease; font-size: 11px;
+}
+.intensity-wrap[open] > summary::before { transform: rotate(90deg); }
+.intensity-label { font: 500 13px var(--sans); color: var(--text); }
+.intensity-current {
+  font: 12px var(--mono); color: var(--muted);
+  margin-left: auto;
+}
+.intensity-options {
+  padding: 4px 14px 14px;
+  display: grid; gap: 8px;
+}
+.intensity-opt {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-rows: auto auto;
+  gap: 2px 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 5px; background: var(--surface);
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.intensity-opt:hover { border-color: var(--border-strong); }
+.intensity-opt:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }
+.intensity-opt input { grid-row: span 2; align-self: start; margin-top: 3px; }
+.intensity-opt .opt-title { font-weight: 600; font-size: 13px; color: var(--text); }
+.intensity-opt .opt-tag {
+  font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--accent-strong); background: #dfe5e0;
+  padding: 1px 6px; border-radius: 10px;
+  font-weight: 600; margin-left: 4px;
+}
+.intensity-opt .opt-desc { color: var(--text-soft); font-size: 12px; line-height: 1.45; }
+
 /* Source tabs (file vs paste) */
 .source-tabs { display: flex; gap: 4px; margin-bottom: 12px; border-bottom: 1px solid var(--border); }
 .source-tabs .tab {

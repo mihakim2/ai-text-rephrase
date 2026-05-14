@@ -88,7 +88,7 @@ def _checkpoint(run_path: Path, doc: dict, jlog: logging.Logger):
     jlog.info(f"checkpoint saved -> {run_path / 'checkpoint.txt'}")
 
 
-def _triage_prose_blocks(job_id: str, prose_idxs: list[int], blocks: list[dict], total: int, jlog: logging.Logger):
+def _triage_prose_blocks(job_id: str, prose_idxs: list[int], blocks: list[dict], total: int, jlog: logging.Logger, passthrough_score: int):
     """Run blind detector on each original prose block. Sets needs_rewrite + status."""
     def worker(idx: int):
         text = blocks[idx]["original"]
@@ -106,7 +106,7 @@ def _triage_prose_blocks(job_id: str, prose_idxs: list[int], blocks: list[dict],
             b = blocks[idx]
             b["detector_original"] = result
             score = result.get("score", 0) or 0
-            if score >= config.DEEP_PASSTHROUGH_SCORE:
+            if score >= passthrough_score:
                 b["needs_rewrite"] = False
                 b["status"] = "passthrough"
                 b["final_text"] = b["original"]
@@ -245,7 +245,7 @@ def _critic_and_detect(
     return critic
 
 
-def _pick_best(idx: int, blocks: list[dict]):
+def _pick_best(idx: int, blocks: list[dict], max_sim: int):
     """For a block, pick the best rephrased version.
 
     Composite score: detector_score (honesty signal) penalized when similarity is too high.
@@ -262,7 +262,7 @@ def _pick_best(idx: int, blocks: list[dict]):
         if det is None:
             return -1
         # Penalize similarity above the max threshold; each point of excess subtracts from det.
-        sim_penalty = max(0, (sim or 0) - config.DEEP_MAX_SIMILARITY_SCORE)
+        sim_penalty = max(0, (sim or 0) - max_sim)
         return det - sim_penalty
 
     scored = [v for v in b["rephrased_versions"] if v.get("detector_score") is not None]
@@ -285,6 +285,11 @@ def _process_chunk_batch(
     user_samples: Optional[list[str]],
     jlog: logging.Logger,
     total: int,
+    *,
+    max_iter: int,
+    target_det: int,
+    target_crit: int,
+    max_sim: int,
 ) -> bool:
     """Returns True if any block in this batch needed >1 iteration (for skipping the final pass)."""
     iteration = 1
@@ -292,7 +297,7 @@ def _process_chunk_batch(
     _rephrase_block_set(job_id, idxs, blocks, voice_profile, user_samples, iteration, {}, total)
     critic = _critic_and_detect(job_id, idxs, blocks, iteration, jlog, total)
 
-    while iteration < config.DEEP_MAX_ITERATIONS:
+    while iteration < max_iter:
         # Identify blocks that failed any of the three gates: critic, detector, similarity
         failing: dict[int, str] = {}
         for i in idxs:
@@ -300,8 +305,8 @@ def _process_chunk_batch(
             crit = b.get("critic_score") or 0
             det = b.get("detector_score") or 0
             sim = b.get("similarity_score")
-            sim_failed = sim is not None and sim > config.DEEP_MAX_SIMILARITY_SCORE
-            if crit < config.DEEP_TARGET_CRITIC_SCORE or det < config.DEEP_TARGET_DETECTOR_SCORE or sim_failed:
+            sim_failed = sim is not None and sim > max_sim
+            if crit < target_crit or det < target_det or sim_failed:
                 hint = None
                 for per in critic.get("per_chunk", []):
                     if per.get("idx") == i:
@@ -332,7 +337,7 @@ def _process_chunk_batch(
             break
 
     for i in idxs:
-        _pick_best(i, blocks)
+        _pick_best(i, blocks, max_sim)
         _emit_block(job_id, blocks[i], total)
     return needed_iteration
 
@@ -351,6 +356,19 @@ def run(job_id: str):
 
     jlog = setup_job_logger(job_id, run_path, store)
     jlog.info(f"run dir: {run_path}  mode: deep")
+
+    # Resolve per-job thresholds (intensity preset, set at upload time).
+    T = (doc.get("config") or {}).get("thresholds") or {}
+    passthrough_score = T.get("DEEP_PASSTHROUGH_SCORE", config.DEEP_PASSTHROUGH_SCORE)
+    target_det = T.get("DEEP_TARGET_DETECTOR_SCORE", config.DEEP_TARGET_DETECTOR_SCORE)
+    target_crit = T.get("DEEP_TARGET_CRITIC_SCORE", config.DEEP_TARGET_CRITIC_SCORE)
+    max_sim = T.get("DEEP_MAX_SIMILARITY_SCORE", config.DEEP_MAX_SIMILARITY_SCORE)
+    max_iter = T.get("DEEP_MAX_ITERATIONS", config.DEEP_MAX_ITERATIONS)
+    jlog.info(
+        f"intensity: {doc.get('config', {}).get('intensity', 'default')} "
+        f"(passthrough>={passthrough_score}, target_det>={target_det}, target_crit>={target_crit}, "
+        f"max_sim<={max_sim}, max_iter={max_iter})"
+    )
 
     try:
         store.update(job_id, status="running")
@@ -388,7 +406,7 @@ def run(job_id: str):
         if prose_idxs:
             jlog.info(f"triage: scoring {len(prose_idxs)} prose blocks with blind detector...")
             store.emit(job_id, "progress", {"stage": "triage", "total": len(prose_idxs)})
-            _triage_prose_blocks(job_id, prose_idxs, blocks, prose_total, jlog)
+            _triage_prose_blocks(job_id, prose_idxs, blocks, prose_total, jlog, passthrough_score)
 
         # 3. Intent extraction only for flagged blocks
         flagged = [i for i in prose_idxs if blocks[i]["needs_rewrite"]]
@@ -405,7 +423,10 @@ def run(job_id: str):
         for start in range(0, len(flagged), config.DEEP_CHUNK_BATCH_SIZE):
             batch = flagged[start : start + config.DEEP_CHUNK_BATCH_SIZE]
             jlog.info(f"batch: blocks {batch}")
-            if _process_chunk_batch(job_id, batch, blocks, doc["voice_profile"], user_samples, jlog, prose_total):
+            if _process_chunk_batch(
+                job_id, batch, blocks, doc["voice_profile"], user_samples, jlog, prose_total,
+                max_iter=max_iter, target_det=target_det, target_crit=target_crit, max_sim=max_sim,
+            ):
                 any_needed_iteration = True
             doc["progress"]["done"] = sum(1 for b in blocks if b["type"] == "prose" and b["status"] in ("accepted", "passthrough"))
             processed_since_checkpoint += len(batch)

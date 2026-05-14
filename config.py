@@ -59,6 +59,46 @@ DEEP_MAX_SIMILARITY_SCORE = 5        # rewrite must score AT MOST this on simila
 DEEP_MAX_ITERATIONS = 3
 DEEP_SKIP_FINAL_PASS_IF_ALL_FIRST_TRY = True  # skip the doc-level pass when nothing needed iteration
 
+# ---------------- Intensity presets ----------------
+# User-facing knob: how aggressively to rewrite. Higher intensity = rewrite more paragraphs,
+# require more meaningful change, accept fewer near-copies, iterate more.
+INTENSITY_PRESETS = {
+    "light": {
+        # Skip paragraphs aggressively; loose targets; one shot per paragraph.
+        "DEEP_PASSTHROUGH_SCORE": 8,
+        "DEEP_TARGET_DETECTOR_SCORE": 6,
+        "DEEP_TARGET_CRITIC_SCORE": 6,
+        "DEEP_MAX_SIMILARITY_SCORE": 7,
+        "DEEP_MAX_ITERATIONS": 1,
+        "TARGET_AI_SCORE": 7,
+        "TARGET_FLOW_SCORE": 6,
+        "MAX_ITERATIONS": 1,
+    },
+    "balanced": {
+        # The system defaults (current behavior).
+        "DEEP_PASSTHROUGH_SCORE": 7,
+        "DEEP_TARGET_DETECTOR_SCORE": 7,
+        "DEEP_TARGET_CRITIC_SCORE": 7,
+        "DEEP_MAX_SIMILARITY_SCORE": 5,
+        "DEEP_MAX_ITERATIONS": 3,
+        "TARGET_AI_SCORE": 8,
+        "TARGET_FLOW_SCORE": 7,
+        "MAX_ITERATIONS": 3,
+    },
+    "aggressive": {
+        # Rewrite almost everything; demand strong human-ness and big surface change.
+        "DEEP_PASSTHROUGH_SCORE": 4,
+        "DEEP_TARGET_DETECTOR_SCORE": 8,
+        "DEEP_TARGET_CRITIC_SCORE": 8,
+        "DEEP_MAX_SIMILARITY_SCORE": 3,
+        "DEEP_MAX_ITERATIONS": 4,
+        "TARGET_AI_SCORE": 9,
+        "TARGET_FLOW_SCORE": 8,
+        "MAX_ITERATIONS": 4,
+    },
+}
+DEFAULT_INTENSITY = "balanced"
+
 # ---------------- Token limits ----------------
 MAX_TOKENS_INTENT = 400
 MAX_TOKENS_REPHRASE = 500

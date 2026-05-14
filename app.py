@@ -62,9 +62,15 @@ def upload():
         else:
             user_samples = [p.strip() for p in samples_raw.split("\n\n") if p.strip()]
 
+    intensity = (request.form.get("intensity") or cfg.DEFAULT_INTENSITY).lower()
+    if intensity not in cfg.INTENSITY_PRESETS:
+        intensity = cfg.DEFAULT_INTENSITY
+    thresholds = dict(cfg.INTENSITY_PRESETS[intensity])
+
     cfg_snapshot = {
         "mode": mode,
-        "max_iterations": cfg.MAX_ITERATIONS if mode == "quick" else cfg.DEEP_MAX_ITERATIONS,
+        "intensity": intensity,
+        "thresholds": thresholds,
     }
 
     if mode == "quick":
