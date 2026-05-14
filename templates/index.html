@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Rephraser</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <main>
+    <header>
+      <div class="header-row">
+        <div>
+          <h1>Rephraser</h1>
+          <p class="subtitle">Turn AI-written text into something a PhD student would actually write.</p>
+        </div>
+        <button type="button" id="howit-btn" class="link-btn" aria-haspopup="dialog" aria-controls="howit-modal">How it works</button>
+      </div>
+    </header>
+
+    <!-- How it works modal -->
+    <div id="howit-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="howit-title">
+      <div class="modal-backdrop"></div>
+      <div class="modal-card">
+        <div class="modal-head">
+          <h2 id="howit-title">How it works</h2>
+          <button type="button" class="icon-btn" id="howit-close" aria-label="Close">×</button>
+        </div>
+        <div class="modal-body">
+          <p>This app rewrites AI-written prose to read like an actual human (specifically: a PhD student) wrote it. Two modes:</p>
+          <ul class="howit-list">
+            <li><strong>Deep mode</strong> (recommended) — paragraph-level rewriting with structure preservation. Headers, lists, code, and math are never touched. Each prose paragraph is first scored by a <em>blind AI detector</em>; if it already sounds human enough, it passes through. Otherwise it's rewritten by Claude Sonnet using paragraph context and either your own writing samples or an inferred voice profile. A <em>prompted critic</em> and the blind detector then independently judge the rewrite; both must clear thresholds, plus a similarity check ensures the rewrite isn't a near-copy.</li>
+            <li><strong>Quick mode</strong> — sentence-by-sentence rewriting. Faster, simpler, less stylistically cohesive.</li>
+          </ul>
+
+          <div class="diagram-wrap">
+            <div class="diagram-label">Deep mode pipeline</div>
+            <pre class="mermaid">
+%%{init: {'flowchart': {'nodeSpacing': 18, 'rankSpacing': 28, 'curve': 'basis'}, 'theme': 'base', 'themeVariables': {'background': '#ffffff', 'primaryColor': '#eef0ec', 'primaryBorderColor': '#5b6b5e', 'primaryTextColor': '#1f1d1a', 'lineColor': '#8a8478', 'tertiaryColor': '#faf9f6'}}}%%
+flowchart LR
+    A[Upload .txt<br/>+ samples] --> B[Parse blocks]
+    B --> C[Voice<br/>Claude Opus]
+    C --> D[Triage:<br/>blind detector<br/>Gemini]
+    D -->|score ≥ 7| P[Passthrough]
+    D -->|score &lt; 7| E[Rephrase chunk<br/>Claude Sonnet]
+    E --> F[Critic + detector<br/>+ similarity<br/>Gemini]
+    F -->|fail| E
+    F -->|pass / max iter| G[Accept]
+    P --> H[Reassemble]
+    G --> H
+    H --> I[Download]
+            </pre>
+          </div>
+
+          <h3>Why these choices</h3>
+          <ul class="howit-list">
+            <li><strong>Cross-family judging</strong> — writer is Claude, critic and detector are Gemini. Different training data, different blind spots.</li>
+            <li><strong>Blind detector is the honesty signal</strong> — the prompted critic Goodharts against its own rubric; the blind detector has no rubric and is harder to game.</li>
+            <li><strong>Similarity gate</strong> — the critic sees both the original and the rewrite. A near-copy is rejected even if it sounds human.</li>
+            <li><strong>User samples beat inferred voice</strong> — paste a few real paragraphs of your own writing in Deep mode and the rewriter matches that voice directly.</li>
+            <li><strong>Triage skips good writing</strong> — paragraphs that already score human enough are preserved verbatim.</li>
+          </ul>
+
+          <h3>Models used</h3>
+          <ul class="howit-list">
+            <li>Voice calibration: <strong>Claude Opus 4.7</strong></li>
+            <li>Paragraph/sentence rewriting: <strong>Claude Sonnet 4.6</strong></li>
+            <li>Intent extraction: <strong>Claude Haiku 4.5</strong></li>
+            <li>Critic + blind detector: <strong>Gemini 2.5 Pro</strong></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <section id="upload-section" class="card">
+      <h2>Upload</h2>
+
+      <div class="mode-row">
+        <label class="mode-opt">
+          <input type="radio" name="mode" value="deep" checked>
+          <span class="mode-title">Deep <span class="mode-tag">recommended</span></span>
+          <span class="mode-desc">Paragraph-level rewriting with structure preservation, triage, blind AI detector, and optional user samples. Higher quality, slower.</span>
+        </label>
+        <label class="mode-opt">
+          <input type="radio" name="mode" value="quick">
+          <span class="mode-title">Quick</span>
+          <span class="mode-desc">Sentence-by-sentence rewriting. Faster, simpler. Best for short documents or when you don't need structure preservation.</span>
+        </label>
+      </div>
+
+      <div class="source-tabs" role="tablist">
+        <button type="button" class="tab active" id="tab-file" data-target="source-file" role="tab" aria-selected="true">Upload file</button>
+        <button type="button" class="tab" id="tab-paste" data-target="source-paste" role="tab" aria-selected="false">Paste text</button>
+      </div>
+
+      <div id="source-file" class="source-pane">
+        <div class="drop" id="drop-zone" role="button" tabindex="0">
+          <span id="drop-label">Drop a .txt file here, or click to choose</span>
+        </div>
+        <input type="file" id="file-input" accept=".txt" hidden>
+      </div>
+
+      <div id="source-paste" class="source-pane hidden-soft">
+        <textarea id="paste-input" rows="10" placeholder="Paste your text here..."></textarea>
+        <div class="paste-meta">
+          <span id="paste-count">0 characters</span>
+        </div>
+      </div>
+
+      <div id="samples-wrap" class="samples-wrap">
+        <label for="samples" class="samples-label">
+          Your writing samples <span class="optional">(optional — pastes a few paragraphs you've actually written, separated by blank lines or <code>---</code>)</span>
+        </label>
+        <textarea id="samples" rows="6" placeholder="Paste 2-3 paragraphs of your own writing here. The rewriter will match this voice instead of inferring one from the document."></textarea>
+      </div>
+
+      <button id="start-btn" disabled>Start rephrasing</button>
+      <div id="upload-msg" class="msg"></div>
+    </section>
+
+    <section id="progress-section" class="card hidden">
+      <h2>Progress</h2>
+      <div class="progress-row">
+        <div class="bar"><div id="bar-fill"></div></div>
+        <span id="progress-text">0 / 0</span>
+      </div>
+      <div id="stage-line" class="stage-line"></div>
+      <div id="voice-line" class="stage-line"></div>
+      <div class="sentences" id="units"></div>
+
+      <div class="log-panel-header">
+        <span class="label">Live log</span>
+        <span class="controls">
+          <label><input type="checkbox" id="autoscroll" checked> auto-scroll</label>
+        </span>
+      </div>
+      <div class="log-panel" id="log-panel"></div>
+    </section>
+
+    <section id="done-section" class="card hidden">
+      <h2>Done</h2>
+      <div id="done-summary"></div>
+
+      <div id="usage-wrap" class="usage-wrap hidden">
+        <div class="usage-label">Token usage</div>
+        <table class="usage-table" id="usage-table">
+          <thead>
+            <tr><th>Model</th><th>Role</th><th class="num">Calls</th><th class="num">Input</th><th class="num">Output</th><th class="num">Cached</th><th class="num">Total</th></tr>
+          </thead>
+          <tbody id="usage-body"></tbody>
+          <tfoot id="usage-foot"></tfoot>
+        </table>
+      </div>
+
+      <a id="download-btn" class="primary-btn" href="#">Download final .txt</a>
+      <button id="changes-btn" class="secondary-btn">View changes</button>
+      <button id="reset-btn" class="secondary-btn">Process another</button>
+
+      <div id="changes-section" class="changes-section hidden">
+        <div class="changes-head">
+          <span class="changes-label">Changes</span>
+          <span class="changes-legend">
+            <span class="legend-item"><span class="legend-swatch del"></span>removed</span>
+            <span class="legend-item"><span class="legend-swatch add"></span>added</span>
+            <span class="legend-item"><span class="legend-swatch passthrough"></span>untouched</span>
+          </span>
+        </div>
+        <div id="changes-body"></div>
+      </div>
+    </section>
+
+    <section id="error-section" class="card hidden">
+      <h2>Error</h2>
+      <div id="error-msg" class="error"></div>
+      <button id="error-reset-btn" class="secondary-btn">Start over</button>
+    </section>
+  </main>
+  <script src="/static/app.js"></script>
+  <!-- Mermaid is loaded lazily by app.js on first modal open. -->
+</body>
+</html>

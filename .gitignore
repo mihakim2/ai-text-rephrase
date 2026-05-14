@@ -1,0 +1,10 @@
+.env
+__pycache__/
+*.pyc
+.venv/
+venv/
+uploads/
+runs/
+test.txt
+team/
+.DS_Store
